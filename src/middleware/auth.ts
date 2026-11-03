@@ -1,0 +1,40 @@
+import { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
+import User, { IUser } from "../models/User";
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: IUser
+    }
+  }
+}
+
+export const authenticated = async (req: Request, res: Response, next: NextFunction) => {
+  const bearer = req.headers.authorization;
+  if(!bearer){
+    const error = new Error("No Autorizado");
+    res.status(401).json({error: error.message});
+  }
+  const token = bearer.split(" ")[1];
+
+  try{
+    const decoded = jwt.verify(token, process.env.SECRET_KEY);
+    console.log("decoded: ", decoded);    
+
+    if(typeof decoded === "object" && decoded.id){
+      const user = await User.findById(decoded.id).select("_id name email");
+      if(user){
+        req.user = user;
+        console.log("Desde Middleware Auth: ", req.user)
+      } else {
+        res.status(500).json({error: "Token no Válido"});    
+      }
+    }
+
+  } catch (error) {
+    res.status(500).json({error: "Token no Válido"});
+  }
+
+  next();
+}
